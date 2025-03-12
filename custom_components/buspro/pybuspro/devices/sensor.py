@@ -65,6 +65,9 @@ class Sensor(Device):
                 self._call_device_updated()
             else:
                 _LOGGER.error(f"12in1 sensor data failed to receive - {telegram.payload}")
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                msg_type = "broadcast" if telegram.operate_code == OperateCode.Broadcast12in1SensorStatusAutoResponse else "data"
+                _LOGGER.debug(f"12in1 sensor {msg_type} received - temp:{self._current_temperature}, brightness:{self._brightness}, motion:{self._motion_sensor}, sonic:{self._sonic}, dc1:{self._dry_contact_1_status}, dc2:{self._dry_contact_2_status}")
 
         # elif telegram.operate_code == OperateCode.Broadcast12in1SensorStatusAutoResponse:
         #     self._current_temperature = telegram.payload[0] - 20
@@ -86,7 +89,8 @@ class Sensor(Device):
             self._dry_contact_1_status = telegram.payload[8]
             self._dry_contact_2_status = telegram.payload[9]
             if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug(f"Sensors-in-one data received - temp:{self._current_temperature}, brightness:{self._brightness}, humidity:{self._current_humidity}, motion:{self._motion_sensor}, dc1:{self._dry_contact_1_status}, dc2:{self._dry_contact_2_status}")        
+                msg_type = "broadcast" if telegram.operate_code == OperateCode.BroadcastSensorsInOneStatusResponse else "data"
+                _LOGGER.debug(f"Sensors-in-one {msg_type} received - temp:{self._current_temperature}, brightness:{self._brightness}, humidity:{self._current_humidity}, motion:{self._motion_sensor}, dc1:{self._dry_contact_1_status}, dc2:{self._dry_contact_2_status}")        
             self._call_device_updated()
 
         elif telegram.operate_code == OperateCode.ReadFloorHeatingStatusResponse:
@@ -106,14 +110,14 @@ class Sensor(Device):
                             float_temp = struct.unpack("<f", float_bytes)[0]
                             
                             if -100 < float_temp < 100:
-                                self._current_temperature = float_temp
-                                if _LOGGER.isEnabledFor(logging.DEBUG):
-                                    _LOGGER.debug(f"Temperature received as float: {float_temp}")
+                                self._current_temperature = float_temp                                
+
                         except (struct.error, ValueError, IndexError) as e:
                             pass
                 
                 if _LOGGER.isEnabledFor(logging.DEBUG):
-                    _LOGGER.debug(f"Temperature received - temp:{self._current_temperature}")
+                    msg_type = "broadcast" if telegram.operate_code == OperateCode.BroadcastTemperatureResponse else "data"
+                    _LOGGER.debug(f"Temperature {msg_type} received - temp: {self._current_temperature}")
                 self._call_device_updated()
 
         elif telegram.operate_code == OperateCode.ReadStatusOfUniversalSwitchResponse:
@@ -147,9 +151,9 @@ class Sensor(Device):
             if self._switch_number == telegram.payload[1]:
                 self._switch_status = telegram.payload[2]
                 if _LOGGER.isEnabledFor(logging.DEBUG):
-                    _LOGGER.debug(f"Dry contact status received for switch {self._switch_number} - status:{self._switch_status}")            
-                self._call_device_updated()
-            
+                    msg_type = "broadcast" if telegram.operate_code == OperateCode.ReadDryContactBroadcastStatusResponse else "data"
+                    _LOGGER.debug(f"Dry contact {msg_type} received for switch {self._switch_number} - status:{self._switch_status}")            
+                self._call_device_updated()            
 
 
     async def read_sensor_status(self):

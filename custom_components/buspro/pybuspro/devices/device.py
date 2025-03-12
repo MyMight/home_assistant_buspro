@@ -19,15 +19,14 @@ class Device(object):
     def name(self):
         return self._name
 
-    def register_telegram_received_cb(self, telegram_received_cb, postfix=None):
+    def register_telegram_received_cb(self, telegram_received_cb):
         self._hass.data[DATA_BUSPRO].hdl.register_telegram_received_device_cb(
             telegram_received_cb, 
-            self._device_address, 
-            postfix
+            self._device_address
         )
 
-    def unregister_telegram_received_cb(self, telegram_received_cb, postfix=None):
-        self._buspro.unregister_telegram_received_device_cb(telegram_received_cb, self._device_address, postfix)
+    def unregister_telegram_received_cb(self, telegram_received_cb):
+        self._buspro.unregister_telegram_received_device_cb(telegram_received_cb, self._device_address)
 
     def register_device_updated_cb(self, device_updated_cb):
         """Register device updated callback."""

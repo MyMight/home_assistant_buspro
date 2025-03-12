@@ -127,7 +127,8 @@ class HDLBusproCover(CoverEntity):
             CoverEntityFeature.CLOSE | 
             CoverEntityFeature.STOP |
             CoverEntityFeature.OPEN_TILT |
-            CoverEntityFeature.CLOSE_TILT
+            CoverEntityFeature.CLOSE_TILT |
+            CoverEntityFeature.STOP_TILT
         )
 
     @property
@@ -167,6 +168,10 @@ class HDLBusproCover(CoverEntity):
             await self._device.small_step_open()
         else:
             await self._device.small_step_close()
+        
+    async def async_stop_cover_tilt(self, **kwargs):
+        """Stop the cover tilt movement."""
+        await self._device.small_step_stop()
         
     @property
     def should_poll(self):

@@ -16,6 +16,7 @@ class CoverCommand(IntEnum):
     CLOSE = 2
     STEP_OPEN = 3    # Small step up
     STEP_CLOSE = 4  # Small step down
+    STEP_STOP = 5  # Small step down
 
 class CoverStatus(IntEnum):
     """Cover position status."""
@@ -61,7 +62,7 @@ class Cover(Device):
         csc.state = CoverStatus.STOP
         
         
-        if command in [CoverCommand.STEP_OPEN, CoverCommand.STEP_CLOSE]:
+        if command in [CoverCommand.STEP_OPEN, CoverCommand.STEP_CLOSE, CoverCommand.STEP_STOP]:
             csc.channel += 2
         
         if command in [CoverCommand.OPEN, CoverCommand.STEP_OPEN]:
@@ -89,6 +90,10 @@ class Cover(Device):
     async def small_step_close(self):
         """Tilt cover down (small movement)."""
         await self._send_command(CoverCommand.STEP_CLOSE)
+
+    async def small_step_stop(self):
+        """Tilt cover down (small movement)."""
+        await self._send_command(CoverCommand.STEP_STOP)
 
     @property
     def position(self):

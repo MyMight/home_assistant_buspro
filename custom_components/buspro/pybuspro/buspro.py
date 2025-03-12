@@ -9,9 +9,6 @@ _LOGGER = logging.getLogger(__name__)
 
 # ip, port = gateway_address
 # subnet_id, device_id, channel = device_address
-
-
-
 class Buspro:
 
     def __init__(self, hass, gateway_address_send_receive, loop_=None):
@@ -23,8 +20,8 @@ class Buspro:
         self.logger = logging.getLogger("buspro.log")
         self.telegram_logger = logging.getLogger("buspro.telegram")
 
-        self.callback_all_messages = None
-        self._telegram_received_cbs = []
+        self.callback_all_messages = None        
+        self._telegram_received_cbs = {}
 
         self.gateway_address_send_receive = gateway_address_send_receive
         if _LOGGER.isEnabledFor(logging.DEBUG):
@@ -41,20 +38,11 @@ class Buspro:
                 self.logger.warning("Could not close loop, reason: {}".format(exp))
 
     # noinspection PyUnusedLocal
-    async def start(self):  # , daemon_mode=False):
+    async def start(self):
         self.network_interface = NetworkInterface(self._hass, self.gateway_address_send_receive)
         self.network_interface.register_callback(self._callback_all_messages)
         await self.network_interface.start()
-
-        '''
-        if daemon_mode:
-            await self._loop_until_sigint()
-        '''
-
         self.started = True
-
-        # await asyncio.sleep(5)
-        # await self.network_interface.send_message(b'\0x01')
 
     async def stop(self):
         await self._stop_network_interface()
@@ -66,18 +54,20 @@ class Buspro:
 
         if self.callback_all_messages is not None:
             self.callback_all_messages(telegram)
-
-        for telegram_received_cb in self._telegram_received_cbs:
-            device_address = telegram_received_cb['device_address']
-
-            # Sender callback kun for oppgitt kanal
-            if device_address == telegram.target_address or device_address == telegram.source_address:
-                if telegram.operate_code is not OperateCode.BroadcastSystemDateandTimeEveryMinute:
-                    postfix = telegram_received_cb['postfix']
-                    if postfix is not None:
-                        telegram_received_cb['callback'](telegram, postfix)
-                    else:
-                        telegram_received_cb['callback'](telegram)
+        
+        callbacks_to_call = []
+        
+        if telegram.source_address in self._telegram_received_cbs:
+            callbacks_to_call.extend(self._telegram_received_cbs[telegram.source_address])
+            
+#        if telegram.target_address in self._telegram_received_cbs:
+#            callbacks_to_call.extend(self._telegram_received_cbs[telegram.target_address])
+            
+        unique_callbacks = set(callbacks_to_call)
+        
+        for callback in unique_callbacks:
+            if telegram.operate_code is not OperateCode.BroadcastSystemDateandTimeEveryMinute:
+                callback(telegram)
 
     async def _stop_network_interface(self):
         if self.network_interface is not None:
@@ -87,15 +77,28 @@ class Buspro:
     def register_telegram_received_all_messages_cb(self, telegram_received_cb):
         self.callback_all_messages = telegram_received_cb
 
-    def register_telegram_received_device_cb(self, telegram_received_cb, device_address, postfix=None):
-        self._telegram_received_cbs.append({
-            'callback': telegram_received_cb,
-            'device_address': device_address,
-            'postfix': postfix})
-
-    def unregister_telegram_received_device_cb(self, telegram_received_cb, device_address, postfix=None):
-        self._telegram_received_cbs.remove({
-            'callback': telegram_received_cb,
-            'device_address': device_address,
-            'postfix': postfix})
+    def register_telegram_received_device_cb(self, telegram_received_cb, device_address):
+        """Registrace callbacku pro dané zařízení."""
+        if not isinstance(device_address, tuple):
+            device_address = tuple(device_address)
+        
+        if device_address not in self._telegram_received_cbs:
+            self._telegram_received_cbs[device_address] = []
+        
+        if telegram_received_cb not in self._telegram_received_cbs[device_address]:
+            self._telegram_received_cbs[device_address].append(telegram_received_cb)
+        
+    def unregister_telegram_received_device_cb(self, telegram_received_cb, device_address):
+        """Zrušení registrace callbacku."""
+        if not isinstance(device_address, tuple):
+            device_address = tuple(device_address)
+        
+        if device_address in self._telegram_received_cbs:
+            try:
+                self._telegram_received_cbs[device_address].remove(telegram_received_cb)
+                
+                if not self._telegram_received_cbs[device_address]:
+                    del self._telegram_received_cbs[device_address]
+            except ValueError:                
+                pass
 
