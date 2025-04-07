@@ -153,5 +153,5 @@ class BusproSwitch(SwitchEntity):
     def unique_id(self):
         """Return unique ID for this switch."""
         subnet, device = self._device._device_address
-        channel = getattr(self._device, "_channel_number", "N")
+        channel = getattr(self._device, "_channel_number", getattr(self._device, "_switch_number", "N"))
         return f"{subnet}-{device}-{channel}-switch"
