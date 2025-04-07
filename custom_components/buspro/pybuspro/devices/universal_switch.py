@@ -18,18 +18,14 @@ class UniversalSwitch(Device):
         self._call_read_current_status_of_universal_switch(run_from_init=True)
 
     def _telegram_received_cb(self, telegram):
-        if telegram.operate_code == OperateCode.UniversalSwitchControlResponse:
-            switch_number = telegram.payload[0]
-            switch_status = telegram.payload[1]
-
-            if switch_number == self._switch_number:
-                self._switch_status = switch_status
-                self._call_device_updated()
-
-        elif telegram.operate_code == OperateCode.ReadStatusOfUniversalSwitchResponse:
+        if telegram.operate_code in [OperateCode.UniversalSwitchControlResponse, OperateCode.ReadStatusOfUniversalSwitchResponse]:
             if self._switch_number <= telegram.payload[0]:
-                self._switch_status = telegram.payload[1]
+                self._switch_status = SwitchStatusOnOff(telegram.payload[1])
                 self._call_device_updated()
+        elif telegram.operate_code == OperateCode.BroadcastStatusOfUniversalSwitch:
+            if self._switch_number <= telegram.payload[0]:
+                self._switch_status = SwitchStatusOnOff(telegram.payload[self._switch_number])
+                self._call_device_updated(should_reschedule=False)  # Broadcast updates shouldn't reset scheduler
 
     async def set_on(self):
         await self._set(OnOff.ON)
@@ -38,7 +34,9 @@ class UniversalSwitch(Device):
         await self._set(OnOff.OFF)
 
     async def read_status(self):
-        raise NotImplementedError
+        rsous = _ReadStatusOfUniversalSwitch(self._hass, self._device_address)
+        rsous.switch_number = self._switch_number
+        await rsous.send()
 
     @property
     def is_on(self):

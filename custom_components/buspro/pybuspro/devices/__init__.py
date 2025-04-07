@@ -1,4 +1,4 @@
-﻿from .climate import Climate, ControlFloorHeatingStatus
+﻿from .climate import Climate
 from .control import *
 from .device import Device
 from .light import Light

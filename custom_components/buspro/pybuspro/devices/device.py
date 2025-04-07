@@ -36,18 +36,17 @@ class Device(object):
         """Unregister device updated callback."""
         self.device_updated_cbs.remove(device_updated_cb)
 
-    async def _device_updated(self):
-        for device_updated_cb in self.device_updated_cbs:
-            await device_updated_cb(self)
+    async def _device_updated(self, should_reschedule=True):
+        """Device update callback with scheduler reset flag."""
+        for device_updated_cb in self.device_updated_cbs:            
+            await device_updated_cb(self, should_reschedule)            
 
     async def _send_telegram(self, telegram):
         await self._buspro.network_interface.send_telegram(telegram)
 
-    # async def _send_control(self, control):
-    #     await self._buspro.network_interface.send_control(control)
-
-    def _call_device_updated(self):
-        asyncio.ensure_future(self._device_updated(), loop=self._hass.data[DATA_BUSPRO].hdl.loop)
+    def _call_device_updated(self, should_reschedule=True):
+        """Call device updated with scheduler reset flag."""
+        asyncio.ensure_future(self._device_updated(should_reschedule), loop=self._hass.data[DATA_BUSPRO].hdl.loop)
 
     def _call_read_current_status_of_channels(self, run_from_init=False):
         async def read_current_state_of_channels():

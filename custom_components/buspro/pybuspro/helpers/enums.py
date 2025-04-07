@@ -27,10 +27,17 @@ class OperateCode(Enum):
 
     BroadcastTemperatureResponse = b'\xE3\xE5'
 
-    ReadFloorHeatingStatus = b'\x19\x44'
-    ReadFloorHeatingStatusResponse = b'\x19\x45'
-    ControlFloorHeatingStatus = b'\x19\x46'
-    ControlFloorHeatingStatusResponse = b'\x19\x47'
+    DLPReadFloorHeatingStatus = b'\x19\x44'
+    DLPReadFloorHeatingStatusResponse = b'\x19\x45'
+    DLPControlFloorHeatingStatus = b'\x19\x46'
+    DLPControlFloorHeatingStatusResponse = b'\x19\x47'
+
+    FHMReadFloorHeatingStatus = b'\x1C\x5E'
+    FHMResponseReadFloorHeatingStatus = b'\x1C\x5F'
+    FHMControlFloorHeatingStatus = b'\x1C\x5C'
+    FHMResponseControlFloorHeatingStatus = b'\x1C\x5D'
+
+
 
     ReadDryContactStatus = b'\x15\xCE'
     ReadDryContactStatusResponse = b'\x15\xCF'
@@ -38,6 +45,21 @@ class OperateCode(Enum):
 
     ReadTemperatureStatus = b'\xE3\xE7'
     ReadTemperatureStatusResponse = b'\xE3\xE8'
+
+    ReadVoltage = b'\xD9\x02'
+    ReadVoltageResponse  = b'\xD9\x03'
+
+    ReadCurrent = b'\xD9\x08'
+    ReadCurrentResponse  = b'\xD9\x09'
+
+    ReadPowerStatus = b'\xD9\x0A'
+    ReadPowerStatusResponse  = b'\xD9\x0B'
+
+    ReadPowerFactorStatus = b'\xD9\x04'
+    ReadPowerFactorStatusResponse = b'\xD9\x05'
+
+    ReadElectricityStatus = b'\xD9\x1A'
+    ReadElectricityStatusResponse = b'\xD9\x1B'
     
 
     PanelControl = b'\xE3\xD8'
@@ -152,7 +174,21 @@ class TemperatureMode(Enum):
     Timer = 5
 
 
+class WorkType(Enum):
+    """Work type modes for floor heating module."""
+    HEATING = 0
+    COOLING = 1
+    HEATING_POWER = 2
+    COOLING_POWER = 3
 
+
+class OperationMode(Enum):
+    """Operation modes for climate device."""
+    NORMAL = 1
+    DAY = 2
+    NIGHT = 3
+    AWAY = 4
+    TIMER = 5
 
 
 class DeviceFamily(str, Enum):
@@ -160,6 +196,34 @@ class DeviceFamily(str, Enum):
     DLP = "dlp"
     PANEL = "panel"
     SENSORS_IN_ONE = "sensors_in_one"
+    RELAY = "relay"
+    
+
+class SensorType(Enum):
+    TEMPERATURE = "temperature"
+    ILLUMINANCE = "illuminance"
+    HUMIDITY = "humidity"
+    MOTION = "motion"
+    SONIC = "sonic"
+    DRY_CONTACT = "dry_contact"
+    DRY_CONTACT_1 = "dry_contact_1"
+    DRY_CONTACT_2 = "dry_contact_2"
+    UNIVERSAL_SWITCH = "universal_switch"
+    SINGLE_CHANNEL = "single_channel"
+    CURRENT = "current"
+    VOLTAGE = "voltage"
+    ACTIVE_POWER = "active_power"  # Only active power
+    REACTIVE_POWER = "reactive_power"  # Reactive power (VAr)
+    APPARENT_POWER = "apparent_power"  # Apparent power (VA)
+    POWER_FACTOR = "power_factor"
+    ENERGY = "energy"
+    
+
+class SwitchType(str, Enum):
+    """Switch type enum."""
+    RELAY = "relay"  # Standard relay switch
+    UNIVERSAL_SWITCH = "universal_switch"  # Universal switch
+
 
 def validate_device_family(value):
     """Validate device family value."""

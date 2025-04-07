@@ -122,7 +122,7 @@ class BusproBinarySensor(BinarySensorEntity):
     def async_register_callbacks(self):
         """Register callbacks to update hass after device was changed."""
 
-        async def after_update_callback(device):
+        async def after_update_callback(device, should_reschedule=True):
             """Call after device was updated."""
             self.async_write_ha_state()
             await self._hass.data[DATA_BUSPRO].scheduler.device_updated(self.entity_id)

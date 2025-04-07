@@ -10,5 +10,6 @@
   "zeroconf": [],
   "homekit": {},
   "version": "1.0.1",
-  "iot_class": "local_polling"
+  "iot_class": "local_polling",
+  "translation_key": "buspro"
 }

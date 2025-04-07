@@ -70,15 +70,45 @@ class _Control:
             payload = [control.channel_number]
 
         elif type(control) == _ReadFloorHeatingStatus:
-            operate_code = OperateCode.ReadFloorHeatingStatus
+            operate_code = OperateCode.DLPReadFloorHeatingStatus
             payload = []
+
+        elif type(control) == _FHMReadFloorHeatingStatus:
+            operate_code = OperateCode.FHMReadFloorHeatingStatus
+            payload = [control.channel_number]
+            _LOGGER.debug(f"FHMReadFloorHeatingStatus: {control.channel_number}")
+
+        elif type(control) == _FHMControlFloorHeatingStatus:
+            operate_code = OperateCode.FHMControlFloorHeatingStatus             
+            
+            if control.work_type is None or control.status is None:
+                _LOGGER.error("Work type cannot be None for FHM Floor Heating control")
+                return None                
+            
+            # Bitové operace
+            work = (control.work_type.value << 4) | (int(control.status) & 0x0F)
+            
+            _LOGGER.debug(f"FHMControlFloorHeatingStatus: channel={control.channel_number}, "
+                         f"work_type={control.work_type.name}({control.work_type.value}), "
+                         f"status={control.status}, work_byte=0x{work:02x}")
+
+            payload = [
+                control.channel_number,
+                work,
+                control.temperature_type,
+                control.mode,
+                control.normal_temperature,
+                control.day_temperature,
+                control.night_temperature,
+                control.away_temperature
+            ]
 
         elif type(control) == _ReadDryContactStatus:
             operate_code = OperateCode.ReadDryContactStatus
             payload = [1, control.switch_number]
 
         elif type(control) == _ControlFloorHeatingStatus:
-            operate_code = OperateCode.ControlFloorHeatingStatus
+            operate_code = OperateCode.DLPControlFloorHeatingStatus
             payload = [control.temperature_type, control.status, control.mode, control.normal_temperature,
                        control.day_temperature, control.night_temperature, control.away_temperature]
             
@@ -121,6 +151,22 @@ class _Control:
                 now.second,
                 (now.weekday() + 1) % 7
             ]
+        elif type(control) == _ReadVoltageStatus:
+            operate_code = OperateCode.ReadVoltage
+            payload = []
+        elif type(control) == _ReadCurrentStatus:
+            operate_code = OperateCode.ReadCurrent
+            payload = []
+        elif type(control) == _ReadPowerStatus:
+            operate_code = OperateCode.ReadPowerStatus
+            payload = []
+        elif type(control) == _ReadPowerFactorStatus:
+            operate_code = OperateCode.ReadPowerFactorStatus
+            payload = []
+        elif type(control) == _ReadElectricityStatus:
+            operate_code = OperateCode.ReadElectricityStatus
+            payload = []
+
 
         else:
             return None
@@ -136,8 +182,23 @@ class _Control:
         return self.build_telegram_from_control(self)
 
     async def send(self):
-        telegram = self.telegram
-        await self._hass.data[DATA_BUSPRO].hdl.network_interface.send_telegram(telegram)
+        """Send telegram through network interface."""
+        try:
+            await self._hass.data[DATA_BUSPRO].hdl.network_interface.send_telegram(self.telegram)
+            
+        except AttributeError as e:
+            if self.telegram is None:
+                _LOGGER.warning("Cannot send empty telegram")
+            elif DATA_BUSPRO not in self._hass.data:
+                _LOGGER.warning("Buspro module is not initialized")
+            elif not self._hass.data[DATA_BUSPRO].hdl:
+                _LOGGER.warning("HDL instance is not initialized")
+            elif not self._hass.data[DATA_BUSPRO].hdl.network_interface:
+                _LOGGER.warning("Network interface is not ready")
+            else:
+                _LOGGER.warning(f"Cannot send telegram - component not fully initialized: {e}")
+        except Exception as e:
+            _LOGGER.error(f"Error sending telegram: {e}")
 
 
 class _GenericControl(_Control):
@@ -295,3 +356,49 @@ class _BroadcastSystemDateandTimeEveryMinute(_Control):
         super().__init__(hass, device_address)
         self.custom_datetime = None
 
+
+
+class _FHMReadFloorHeatingStatus(_Control):
+    def __init__(self, hass, device_address):
+        super().__init__(hass, device_address)
+        self.channel_number = None
+
+
+class _FHMControlFloorHeatingStatus(_Control):
+    def __init__(self, hass, device_address):
+        super().__init__(hass, device_address)
+        self.channel_number = None
+        self.work_type = None
+        self.status = None
+        self.temperature_type = None
+        self.mode = None
+        self.normal_temperature = None
+        self.day_temperature = None
+        self.night_temperature = None
+        self.away_temperature = None
+
+
+class _ReadVoltageStatus(_Control):
+    def __init__(self, hass, device_address):
+        super().__init__(hass, device_address)        
+        self.channel_number = None
+
+class _ReadCurrentStatus(_Control):
+    def __init__(self, hass, device_address):
+        super().__init__(hass, device_address)        
+        self.channel_number = None
+
+class _ReadPowerStatus(_Control):
+    def __init__(self, hass, device_address):
+        super().__init__(hass, device_address)        
+        self.channel_number = None
+
+class _ReadPowerFactorStatus(_Control):
+    def __init__(self, hass, device_address):
+        super().__init__(hass, device_address)        
+        self.channel_number = None
+
+class _ReadElectricityStatus(_Control):
+    def __init__(self, hass, device_address):
+        super().__init__(hass, device_address)        
+        self.channel_number = None

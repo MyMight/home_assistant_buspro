@@ -116,11 +116,15 @@ class Scheduler:
         except Exception as e:
             _LOGGER.error(f"Error reading entity {entity_id}: {e}")
 
-    async def device_updated(self, entity_id: str) -> None:
-        """Update next read time for entity."""
+    async def device_updated(self, entity_id: str, should_reschedule: bool = True) -> None:
+        """Update next read time for entity if should_reschedule is True."""
         if entity_id not in self.entities_map:
             return
         
+        # Reset scheduler only when requested
+        if not should_reschedule:
+            return
+
         current_time = self.hass.loop.time()
         if current_time - self._now > 1:
             self._now = current_time

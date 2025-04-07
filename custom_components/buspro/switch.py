@@ -16,12 +16,20 @@ from homeassistant.core import callback
 
 from custom_components.buspro.pybuspro.devices.switch import Switch
 from custom_components.buspro.pybuspro.devices.panel import Panel
+from custom_components.buspro.pybuspro.devices.universal_switch import UniversalSwitch
+from .pybuspro.helpers.enums import DeviceFamily, SwitchType, validate_device_family
 
 from ..buspro import DATA_BUSPRO
-from .pybuspro.helpers.enums import DeviceFamily, validate_device_family
 from .helpers import wait_for_buspro
 
-DEFAULT_CONF_DEVICE = "None"
+DEFAULT_CONF_DEVICE = DeviceFamily.RELAY.value # Default device type
+CONF_TYPE = "type"
+DEFAULT_CONF_TYPE = SwitchType.RELAY.value  # Default switch type
+
+SWITCH_TYPES = {
+    SwitchType.RELAY.value: "Standard relay channel",
+    SwitchType.UNIVERSAL_SWITCH.value: "Universal switch"
+}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,6 +37,7 @@ DEVICE_SCHEMA = vol.Schema({
     vol.Required(CONF_NAME): cv.string,
     vol.Optional(CONF_SCAN_INTERVAL, default=0): cv.positive_int,
     vol.Optional(CONF_DEVICE, default=DEFAULT_CONF_DEVICE): vol.All(cv.string, validate_device_family),
+    vol.Optional(CONF_TYPE, default=DEFAULT_CONF_TYPE): vol.In(SWITCH_TYPES),
 })
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
@@ -47,19 +56,27 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     for address, device_config in config[CONF_DEVICES].items():
         name = device_config[CONF_NAME]
         scan_interval = device_config[CONF_SCAN_INTERVAL]
-        device_family_str = device_config.get(CONF_DEVICE)
+        device_type = device_config.get(CONF_DEVICE, DEFAULT_CONF_DEVICE)
+        switch_type = device_config.get(CONF_TYPE, DEFAULT_CONF_TYPE)
         address2 = address.split('.')
         device_address = (int(address2[0]), int(address2[1]))
-        channel_number = int(address2[2])
 
-        if device_family_str == DeviceFamily.PANEL.value:
+        if device_type == DeviceFamily.PANEL.value:
+            channel_number = int(address2[2])
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug(f"Adding panel switch '{name}' with address {device_address} and channel {channel_number}")
             device = Panel(hass, device_address, channel_number, name)
-        else:
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug(f"Adding switch '{name}' with address {device_address} and channel {channel_number}")
-            device = Switch(hass, device_address, channel_number, name)
+        else:  # relay device type
+            if switch_type == SwitchType.UNIVERSAL_SWITCH.value:
+                switch_number = int(address2[2])
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug(f"Adding universal switch '{name}' with address {device_address} and number {switch_number}")
+                device = UniversalSwitch(hass, device_address, switch_number, name)
+            else:  # relay switch type
+                channel_number = int(address2[2])
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug(f"Adding relay switch '{name}' with address {device_address} and channel {channel_number}")
+                device = Switch(hass, device_address, channel_number, name)
 
         devices.append(BusproSwitch(hass, device, scan_interval))
 
@@ -89,7 +106,7 @@ class BusproSwitch(SwitchEntity):
         """Register callbacks to update hass after device was changed."""
 
         # noinspection PyUnusedLocal
-        async def after_update_callback(device):
+        async def after_update_callback(device, should_reschedule=True):
             """Call after device was updated."""
             self.async_write_ha_state()
             await self._hass.data[DATA_BUSPRO].scheduler.device_updated(self.entity_id)

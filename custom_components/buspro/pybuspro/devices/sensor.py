@@ -3,20 +3,8 @@ import logging
 import struct
 from enum import Enum
 
-class SensorType(Enum):
-    TEMPERATURE = "temperature"
-    ILLUMINANCE = "illuminance"
-    HUMIDITY = "humidity"
-    MOTION = "motion"
-    SONIC = "sonic"
-    DRY_CONTACT = "dry_contact"
-    DRY_CONTACT_1 = "dry_contact_1"
-    DRY_CONTACT_2 = "dry_contact_2"
-    UNIVERSAL_SWITCH = "universal_switch"
-    SINGLE_CHANNEL = "single_channel"
-
-from .control import _Read12in1SensorStatus, _ReadStatusOfUniversalSwitch, _ReadStatusOfChannels, _ReadFloorHeatingStatus, \
-    _ReadDryContactStatus, _ReadSensorsInOneStatus, _ReadTemperatureStatus
+from .control import _Read12in1SensorStatus, _ReadCurrentStatus, _ReadElectricityStatus, _ReadPowerFactorStatus, _ReadPowerStatus, _ReadStatusOfUniversalSwitch, _ReadStatusOfChannels, _ReadFloorHeatingStatus, \
+    _ReadDryContactStatus, _ReadSensorsInOneStatus, _ReadTemperatureStatus, _ReadVoltageStatus
 from .device import Device
 from ..helpers.enums import *
 
@@ -43,9 +31,18 @@ class Sensor(Device):
         self._sonic = None
         self._dry_contact_1_status = None
         self._dry_contact_2_status = None
-        self._universal_switch_status = OnOffStatus.OFF
+        self._universal_switch_status = SwitchStatusOnOff.OFF
         self._channel_status = 0
         self._switch_status = 0
+
+        # Add new properties for power measurement
+        self._current = None
+        self._voltage = None
+        self._active_power = None
+        self._reactive_power = None
+        self._apparent_power = None
+        self._power_factor = None
+        self._energy = None
 
         self.register_telegram_received_cb(self._telegram_received_cb)
         self._call_read_current_status_of_sensor(run_from_init=True)
@@ -93,7 +90,7 @@ class Sensor(Device):
                 _LOGGER.debug(f"Sensors-in-one {msg_type} received - temp:{self._current_temperature}, brightness:{self._brightness}, humidity:{self._current_humidity}, motion:{self._motion_sensor}, dc1:{self._dry_contact_1_status}, dc2:{self._dry_contact_2_status}")        
             self._call_device_updated()
 
-        elif telegram.operate_code == OperateCode.ReadFloorHeatingStatusResponse:
+        elif telegram.operate_code == OperateCode.DLPReadFloorHeatingStatusResponse:
             self._current_temperature = telegram.payload[1]
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug(f"Floor heating temperature received - temp:{self._current_temperature}")        
@@ -120,31 +117,20 @@ class Sensor(Device):
                     _LOGGER.debug(f"Temperature {msg_type} received - temp: {self._current_temperature}")
                 self._call_device_updated()
 
-        elif telegram.operate_code == OperateCode.ReadStatusOfUniversalSwitchResponse:
+        elif telegram.operate_code in [OperateCode.ReadStatusOfUniversalSwitchResponse, OperateCode.UniversalSwitchControlResponse]:
             switch_number = telegram.payload[0]
-            universal_switch_status = telegram.payload[1]
-
+            status_enum = SwitchStatusOnOff(telegram.payload[1])
             if switch_number == self._universal_switch_number:
-                self._universal_switch_status = universal_switch_status
+                self._universal_switch_status = status_enum
                 if _LOGGER.isEnabledFor(logging.DEBUG):
-                    _LOGGER.debug(f"Universal switch status received for switch {switch_number} - status:{self._universal_switch_status}")            
+                    _LOGGER.debug(f"Universal switch status updated for switch {switch_number} - status:{status_enum}")
                 self._call_device_updated()
 
         elif telegram.operate_code == OperateCode.BroadcastStatusOfUniversalSwitch:
             if self._universal_switch_number is not None and self._universal_switch_number <= telegram.payload[0]:
-                self._universal_switch_status = telegram.payload[self._universal_switch_number]                
+                self._universal_switch_status = SwitchStatusOnOff(telegram.payload[self._universal_switch_number])                
                 if _LOGGER.isEnabledFor(logging.DEBUG):
                     _LOGGER.debug(f"Universal switch broadcast received for switch {self._universal_switch_number} - status:{self._universal_switch_status}")
-                self._call_device_updated()
-
-        elif telegram.operate_code == OperateCode.UniversalSwitchControlResponse:
-            switch_number = telegram.payload[0]
-            universal_switch_status = telegram.payload[1]
-
-            if switch_number == self._universal_switch_number:
-                self._universal_switch_status = universal_switch_status
-                if _LOGGER.isEnabledFor(logging.DEBUG):
-                    _LOGGER.debug(f"Channel status received for channel {self._channel_number} - status:{self._channel_status}")            
                 self._call_device_updated()
 
         elif telegram.operate_code in [OperateCode.ReadDryContactStatusResponse, OperateCode.ReadDryContactBroadcastStatusResponse]:
@@ -154,6 +140,57 @@ class Sensor(Device):
                     msg_type = "broadcast" if telegram.operate_code == OperateCode.ReadDryContactBroadcastStatusResponse else "data"
                     _LOGGER.debug(f"Dry contact {msg_type} received for switch {self._switch_number} - status:{self._switch_status}")            
                 self._call_device_updated()            
+        
+        elif telegram.operate_code == OperateCode.ReadVoltageResponse:
+            if self._channel_number is not None and 1 <= self._channel_number <= 3:
+                offset = (self._channel_number - 1) * 4
+                self._voltage = round((telegram.payload[offset] * 10.0) + (telegram.payload[offset + 1] ) + (telegram.payload[offset + 2] / 10.0) + (telegram.payload[offset + 3] / 100.0),2)                
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug(f"Voltage received for device {self._device_address} channel {self._channel_number} - voltage:{self._voltage}")
+                self._call_device_updated()
+
+        elif telegram.operate_code == OperateCode.ReadCurrentResponse:
+            if self._channel_number is not None and 1 <= self._channel_number <= 3:
+                offset = (self._channel_number - 1) * 4
+                self._current = round((telegram.payload[offset] * 10.0) + (telegram.payload[offset + 1] ) + (telegram.payload[offset + 2] / 10.0) + (telegram.payload[offset + 3] / 100.0),2)                
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug(f"Current received for device {self._device_address} channel {self._channel_number} - current:{self._current}")
+                self._call_device_updated()
+
+        elif telegram.operate_code == OperateCode.ReadPowerStatusResponse:
+            if self._channel_number is not None and 1 <= self._channel_number <= 4:
+                offset = (self._channel_number - 1) * 2                
+                self._active_power = (telegram.payload[offset] * 256) + telegram.payload[offset + 1]
+                
+                offset += 8
+                self._reactive_power = (telegram.payload[offset] * 256) + telegram.payload[offset + 1]
+                
+                offset += 8
+                self._apparent_power = (telegram.payload[offset] * 256) + telegram.payload[offset + 1]
+                
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    phase = "total" if self._channel_number == 4 else f"phase {self._channel_number}"
+                    _LOGGER.debug(f"Power received for device {self._device_address} {phase}:"
+                                 f" active:{self._active_power}W,"
+                                 f" reactive:{self._reactive_power}VAr,"
+                                 f" apparent:{self._apparent_power}VA")
+                self._call_device_updated()
+
+        elif telegram.operate_code == OperateCode.ReadPowerFactorStatusResponse:
+            if self._channel_number is not None and 1 <= self._channel_number <= 3:
+                offset = (self._channel_number - 1) * 4
+                self._power_factor = round((telegram.payload[offset] * 10.0) + (telegram.payload[offset + 1] ) + (telegram.payload[offset + 2] / 10.0) + (telegram.payload[offset + 3] / 100.0),2)                
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug(f"Power factor received for device {self._device_address} channel {self._channel_number} - power factor:{self._power_factor }")
+                self._call_device_updated()
+
+        elif telegram.operate_code == OperateCode.ReadElectricityStatusResponse:
+            if self._channel_number is not None and 1 <= self._channel_number <= 4:
+                offset = (self._channel_number - 1) * 2
+                self._energy = (telegram.payload[offset] * 256) + telegram.payload[offset + 1]
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug(f"Energy received for device {self._device_address} channel {self._channel_number} - energy:{self._energy}")
+                self._call_device_updated()
 
 
     async def read_sensor_status(self):
@@ -191,6 +228,38 @@ class Sensor(Device):
             rts = _ReadTemperatureStatus(self._hass, self._device_address)            
             rts.channel_number = channel
             await rts.send()
+        elif self._sensor_type is not None and self._sensor_type == SensorType.VOLTAGE and self._channel_number is not None:            
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(f"Reading voltage status for device {self._device_address}, channel {self._channel_number}")
+            rps = _ReadVoltageStatus(self._hass, self._device_address)                        
+            rps.channel_number = self._channel_number
+            await rps.send()
+        elif self._sensor_type is not None and self._sensor_type == SensorType.CURRENT and self._channel_number is not None:            
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(f"Reading current status for device {self._device_address}, channel {self._channel_number}")
+            rps = _ReadCurrentStatus(self._hass, self._device_address)                        
+            rps.channel_number = self._channel_number
+            await rps.send()
+        elif self._sensor_type is not None and self._sensor_type == SensorType.ACTIVE_POWER and self._channel_number is not None:            
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(f"Reading voltage status for device {self._device_address}, channel {self._channel_number}")
+            rps = _ReadPowerStatus(self._hass, self._device_address)                        
+            rps.channel_number = self._channel_number
+            await rps.send()
+        elif self._sensor_type is not None and self._sensor_type == SensorType.POWER_FACTOR and self._channel_number is not None:            
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(f"Reading voltage status for device {self._device_address}, channel {self._channel_number}")
+            rpfs = _ReadPowerFactorStatus(self._hass, self._device_address)                        
+            rpfs.channel_number = self._channel_number
+            await rpfs.send()
+        elif self._sensor_type is not None and self._sensor_type == SensorType.ENERGY and self._channel_number is not None:            
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(f"Reading voltage status for device {self._device_address}, channel {self._channel_number}")
+            res = _ReadElectricityStatus(self._hass, self._device_address)                        
+            res.channel_number = self._channel_number
+            await res.send()
+
+
         elif self._sensor_type is not None and self._channel_number is not None:
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug(f"Reading channel status for device {self._device_address}")
@@ -237,10 +306,7 @@ class Sensor(Device):
 
     @property
     def universal_switch_is_on(self):
-        if self._universal_switch_status == 1:
-            return True
-        else:
-            return False
+        return self._universal_switch_status == SwitchStatusOnOff.ON
 
     @property
     def single_channel_is_on(self):
