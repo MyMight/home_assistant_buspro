@@ -158,18 +158,14 @@ class Sensor(Device):
                 self._call_device_updated()
 
         elif telegram.operate_code == OperateCode.ReadPowerStatusResponse:
-            if self._channel_number is not None and 1 <= self._channel_number <= 4:  # Kanály 1-3 jsou fáze, 4 je total                
-                offset = (self._channel_number - 1) * 2  # 2 byty na hodnotu                
-                    
-                # Active Power (prvních 8 bytů - 3 fáze + total)
+            if self._channel_number is not None and 1 <= self._channel_number <= 4:
+                offset = (self._channel_number - 1) * 2                
                 self._active_power = (telegram.payload[offset] * 256) + telegram.payload[offset + 1]
                 
-                # Reactive Power (druhých 8 bytů)
-                offset += 8  # Posun na reactive power sekci
+                offset += 8
                 self._reactive_power = (telegram.payload[offset] * 256) + telegram.payload[offset + 1]
                 
-                # Apparent Power (třetích 8 bytů)
-                offset += 8  # Posun na apparent power sekci
+                offset += 8
                 self._apparent_power = (telegram.payload[offset] * 256) + telegram.payload[offset + 1]
                 
                 if _LOGGER.isEnabledFor(logging.DEBUG):

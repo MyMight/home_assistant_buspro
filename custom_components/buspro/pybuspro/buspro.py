@@ -63,6 +63,7 @@ class Buspro:
 #        if telegram.target_address in self._telegram_received_cbs:
 #            callbacks_to_call.extend(self._telegram_received_cbs[telegram.target_address])
             
+
         for callback in set(callbacks_to_call):
             if telegram.operate_code is not OperateCode.BroadcastSystemDateandTimeEveryMinute:
                 callback(telegram)
