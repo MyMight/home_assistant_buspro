@@ -19,7 +19,7 @@ class UniversalSwitch(Device):
 
     def _telegram_received_cb(self, telegram):
         if telegram.operate_code in [OperateCode.UniversalSwitchControlResponse, OperateCode.ReadStatusOfUniversalSwitchResponse]:
-            if self._switch_number <= telegram.payload[0]:
+            if self._switch_number == telegram.payload[0]:
                 self._switch_status = SwitchStatusOnOff(telegram.payload[1])
                 self._call_device_updated()
         elif telegram.operate_code == OperateCode.BroadcastStatusOfUniversalSwitch:
